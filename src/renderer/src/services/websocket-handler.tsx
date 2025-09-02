@@ -21,6 +21,7 @@ import { useLocalStorage } from '@/hooks/utils/use-local-storage';
 import { useGroup } from '@/context/group-context';
 import { useInterrupt } from '@/hooks/utils/use-interrupt';
 import { useBrowser } from '@/context/browser-context';
+import { TwitchChat } from './twitch-chat';
 
 function WebSocketHandler({ children }: { children: React.ReactNode }) {
   const { t } = useTranslation();
@@ -40,6 +41,7 @@ function WebSocketHandler({ children }: { children: React.ReactNode }) {
   const autoStartMicOnConvEndRef = useRef(autoStartMicOnConvEnd);
   const { interrupt } = useInterrupt();
   const { setBrowserViewData } = useBrowser();
+  const twitchChatRef = useRef<TwitchChat | null>(null);
 
   useEffect(() => {
     autoStartMicOnConvEndRef.current = autoStartMicOnConvEnd;
@@ -220,6 +222,12 @@ function WebSocketHandler({ children }: { children: React.ReactNode }) {
           appendHumanMessage(message.text);
         }
         break;
+      case 'text-input':
+        console.log('text-input: ', message.text);
+        if (message.text) {
+          appendHumanMessage(message.text);
+        }
+        break;
       case 'error':
         toaster.create({
           title: message.message,
@@ -294,6 +302,16 @@ function WebSocketHandler({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     wsService.connect(wsUrl);
   }, [wsUrl]);
+
+  // Initialize Twitch chat when WebSocket connects
+  useEffect(() => {
+    if (wsState === 'OPEN' && !twitchChatRef.current) {
+      twitchChatRef.current = new TwitchChat(wsService);
+      twitchChatRef.current.connect().catch(error => {
+        console.error('Failed to connect to Twitch chat:', error);
+      });
+    }
+  }, [wsState]);
 
   useEffect(() => {
     const stateSubscription = wsService.onStateChange(setWsState);
