@@ -157,7 +157,6 @@ export class WindowManager {
     this.window.setSkipTaskbar(false);
     this.window.setResizable(true);
     this.window.setFocusable(true);
-    this.window.setAlwaysOnTop(false);
 
     this.window.setBackgroundColor('#ffffff');
     this.window.webContents.send('pre-mode-changed', 'window');
@@ -195,8 +194,16 @@ export class WindowManager {
 
     this.window.setBackgroundColor('#00000000');
 
-    this.window.setAlwaysOnTop(true, 'screen-saver');
-    this.window.setPosition(0, 0);
+    // Get all displays and use the second monitor if available
+    const displays = screen.getAllDisplays();
+    if (displays.length > 1) {
+      // Use the second monitor (index 1)
+      const secondDisplay = displays[1];
+      this.window.setPosition(secondDisplay.bounds.x, secondDisplay.bounds.y);
+    } else {
+      // Fallback to primary display if only one monitor
+      this.window.setPosition(0, 0);
+    }
 
     this.window.webContents.send('pre-mode-changed', 'pet');
   }
@@ -204,14 +211,27 @@ export class WindowManager {
   private continueSetWindowModePet(): void {
     if (!this.window) return;
 
-    const { width, height } = screen.getPrimaryDisplay().workAreaSize;
+    // Get all displays and use the second monitor if available
+    const displays = screen.getAllDisplays();
+    let targetDisplay;
+    
+    if (displays.length > 1) {
+      // Use the second monitor (index 1)
+      targetDisplay = displays[1];
+    } else {
+      // Fallback to primary display if only one monitor
+      targetDisplay = screen.getPrimaryDisplay();
+    }
 
+    const { width, height } = targetDisplay.workAreaSize;
     this.window.setSize(width, height);
 
     if (isMac) this.window.setWindowButtonVisibility(false);
     this.window.setResizable(false);
     this.window.setSkipTaskbar(true);
-    this.window.setFocusable(false);
+    
+    // Keep animations running even when window is not focused
+    this.window.webContents.setBackgroundThrottling(false);
 
     if (isMac) {
       this.window.setIgnoreMouseEvents(true);
