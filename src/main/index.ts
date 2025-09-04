@@ -109,6 +109,15 @@ app.whenReady().then(() => {
   //   });
   // }
 
+  // Atalho global para toggle do microfone (tecla =)
+  globalShortcut.register("=", () => {
+    const window = windowManager.getWindow();
+    if (!window) return;
+    
+    // Envia evento para o renderer process
+    window.webContents.send('mic-toggle');
+  });
+
   setupIPC();
 
   app.on("activate", () => {
