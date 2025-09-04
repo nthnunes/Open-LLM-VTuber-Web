@@ -21,6 +21,7 @@ import { useLocalStorage } from '@/hooks/utils/use-local-storage';
 import { useGroup } from '@/context/group-context';
 import { useInterrupt } from '@/hooks/utils/use-interrupt';
 import { useBrowser } from '@/context/browser-context';
+import { twitchChatQueue } from '@/utils/twitch-chat-queue';
 import { TwitchChat } from './twitch-chat';
 
 function WebSocketHandler({ children }: { children: React.ReactNode }) {
@@ -53,6 +54,29 @@ function WebSocketHandler({ children }: { children: React.ReactNode }) {
       setPendingModelInfo(undefined);
     }
   }, [pendingModelInfo, setModelInfo, confUid]);
+
+  // Process Twitch chat messages when AI is idle
+  useEffect(() => {
+    console.log(`[TwitchChatQueue] useEffect executado - AI State: ${aiState}, Has Messages: ${twitchChatQueue.hasMessages()}, Queue Length: ${twitchChatQueue.getQueueLength()}`);
+    if (aiState === 'idle' && twitchChatQueue.hasMessages()) {
+      console.log('[TwitchChatQueue] AI is idle, processing chat messages...');
+      twitchChatQueue.processAll();
+    } else if (twitchChatQueue.hasMessages()) {
+      console.log(`[TwitchChatQueue] AI is NOT idle (${aiState}), waiting...`);
+    }
+  }, [aiState]);
+
+  // Debug: Log AI state changes and queue status every second
+  useEffect(() => {
+    const interval = setInterval(() => {
+      if (twitchChatQueue.hasMessages()) {
+        console.log(`[TwitchChatQueue] DEBUG - AI State: ${aiState}, Queue Length: ${twitchChatQueue.getQueueLength()}`);
+      }
+    }, 1000);
+
+    return () => clearInterval(interval);
+  }, [aiState]);
+
 
   const {
     setCurrentHistoryUid, setMessages, setHistoryList,
@@ -306,10 +330,25 @@ function WebSocketHandler({ children }: { children: React.ReactNode }) {
   // Initialize Twitch chat when WebSocket connects
   useEffect(() => {
     if (wsState === 'OPEN' && !twitchChatRef.current) {
-      twitchChatRef.current = new TwitchChat(wsService);
+      twitchChatRef.current = new TwitchChat();
       twitchChatRef.current.connect().catch(error => {
         console.error('Failed to connect to Twitch chat:', error);
       });
+
+      // Configure Twitch chat queue callback
+      console.log('[TwitchChatQueue] Configurando callback da fila...');
+      twitchChatQueue.setProcessCallback((msg) => {
+        console.log(`[TwitchChatQueue] Processing: ${msg.username}: ${msg.message}`);
+        wsService.sendMessage({
+          type: 'text-input',
+          text: `[twitch-chat] (User: ${msg.username}) ${msg.message}`,
+          forwarded: true,
+          name: 'Twitch Chat',
+          source: 'twitch-chat'
+        });
+        console.log('[TwitchChatQueue] Mensagem enviada para IA');
+      });
+      console.log('[TwitchChatQueue] Callback configurado');
     }
   }, [wsState]);
 

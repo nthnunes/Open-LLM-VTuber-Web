@@ -1,13 +1,12 @@
-import { WebSocketService } from './websocket-service';
 import { loadTwitchToken } from '@/utils/token-loader';
+import { twitchChatQueue } from '@/utils/twitch-chat-queue';
 
 export class TwitchChat {
   private ws: WebSocket | null = null;
-  private wsService: WebSocketService | null = null;
   private isConnected = false;
 
-  constructor(wsService: WebSocketService) {
-    this.wsService = wsService;
+  constructor() {
+    // No parameters needed
   }
 
   async connect(): Promise<void> {
@@ -81,16 +80,14 @@ export class TwitchChat {
         
         console.log(`[Twitch] ${username}: ${message}`);
         
-        // Send to AI with Twitch identification in the message text
-        if (this.wsService) {
-          this.wsService.sendMessage({
-            type: 'text-input',
-            text: `[twitch-chat] (User: ${username}) ${message}`,
-            forwarded: true,
-            name: 'Twitch Chat',
-            source: 'twitch-chat'
-          });
-        }
+        // Add message to Twitch chat queue
+        console.log('[Twitch] Adicionando mensagem à fila...');
+        twitchChatQueue.addMessage(username, message);
+        console.log(`[Twitch] Mensagem adicionada à fila. Total na fila: ${twitchChatQueue.getQueueLength()}`);
+        
+        // Force process if AI is idle (since useEffect only runs on state change)
+        console.log('[Twitch] Verificando se deve processar fila imediatamente...');
+        twitchChatQueue.forceProcessIfIdle();
       }
     } catch (error) {
       console.error('Erro ao processar mensagem do chat:', error);
